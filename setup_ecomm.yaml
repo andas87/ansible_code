@@ -1,0 +1,122 @@
+- hosts: local
+
+  vars: 
+  - JVM: /usr/lib/jvm/java-11-openjdk-amd64
+  - PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+  - FILE_PATH: /etc/profile
+  - install_dir: /opt/tomcat
+  #- tomcat_url: https://mirrors.estointernet.in/apache/tomcat/tomcat-8/v8.5.65/bin/apache-tomcat-8.5.65.tar.gz
+  - tomcat_in: /home/devops/Downloads/apache-tomcat-8.5.65.tar.gz
+  - tomcat_conn_port: 5050
+  - tomcat_redirect_port: 5443
+  - tomcat_server_port: 5005
+  - rolename1: manager-gui
+  - rolename2: manager-script
+  - tomcat_user: admin
+  - tomcat_pass: admin
+  - tomcat_admin_roles: manager-gui,manager-script
+  - mysql_root_password: root
+  
+  tasks:
+  - name: Install JAVA
+    apt:
+      name: openjdk-11-jdk
+      update_cache: yes
+      cache_valid_time: 600
+      state: present
+    become: yes
+ # Using custom script to update JAVA_HOME and PATH
+ # - name: Execute script to set path variable
+ #   command: sh /home/devops/lab_ansible/set_java.sh
+ #   become: yes
+ # Using ansible command to update JAVA_HOME and PATH
+ 
+  - name: Set JAVA_HOME variable
+    lineinfile:
+      path: "{{ FILE_PATH }}"
+      state: present
+      regexp: '^export JAVA_HOME'
+      line: 'export JAVA_HOME={{ JVM }}'
+    become: yes
+    
+  - name: Set PATH variable
+    lineinfile:
+      path: "{{ FILE_PATH }}"
+      state: present
+      regexp: '^export PATH'
+      line: 'export PATH={{ PATH }}:{{ JVM }}/bin'
+    become: yes
+    
+  - name: Create tomcat install folder
+    file:
+      path: "{{ install_dir }}"
+      state: directory
+      mode: 0755
+    #become: yes
+    
+  - name: Download and unarchive tomcat
+    unarchive:
+      #src: "{{ tomcat_url }}"
+      src: "{{ tomcat_in }}"
+      dest: "{{ install_dir }}"
+      remote_src: no
+    #become: yes  
+    
+  - name: Update server.xml
+    template:
+      src: /home/devops/lab_ansible/templates/server.xml.j2
+      dest: "{{ install_dir }}/apache-tomcat-8.5.65/conf/server.xml"
+      
+  - name: Update tomcat-users.xml
+    template:
+      src: /home/devops/lab_ansible/templates/tomcat-users.xml.j2
+      dest: "{{ install_dir }}/apache-tomcat-8.5.65/conf/tomcat-users.xml"
+      
+  - name: Start tomcat server
+    shell: "nohup {{ install_dir }}/apache-tomcat-8.5.65/bin/startup.sh"    
+    
+  - name: specify root password
+    debconf:
+      name: mysql-server
+      question: mysql-server/root_password
+      value: "{{ mysql_root_password | quote}}"
+      vtype: password
+    become: true
+    
+  - name: confirm root password again
+    debconf:
+      name: mysql-server
+      question: mysql-server/root_password_again
+      value: "{{ mysql_root_password | quote}}"
+      vtype: password
+    become: true
+    
+  - name: Install mysql
+    apt: 
+      name: mysql-server
+      update_cache: yes
+      cache_valid_time: 600
+      state: present
+    become: yes
+    
+  - name: Install python3-PyMySQL lib
+    apt: 
+      name: python3-pymysql
+      state: present
+    become: yes
+    
+  - name: Ensure MySQL is enabled to run on startup
+    service: 
+      name: mysql
+      state: started
+    become: true  
+            
+ # - name: update mysql root password
+ #   mysql_user:
+ #     login_host: localhost
+ #     login_user: root
+ #     login_password: "{{ mysql_root_password }}"
+ #     name: root
+ #     password: "{{ mysql_root_password }}"
+ #     check_implicit_admin: true
+ #   become: yes
