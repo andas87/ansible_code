@@ -1,0 +1,9 @@
+- hosts: localhost
+  vars:
+  - source_file: /var/lib/jenkins/workspace/ecomm_deploy_using_ansible/target/ecomm-0.0.1-SNAPSHOT.war
+  - target_path: /opt/tomcat/apache-tomcat-8.5.65/webapps
+  tasks:
+  - name: Copy webapp war file to tomcat folder
+    copy:
+      src: "{{ source_file }}"
+      dest: "{{ target_path }}"  
